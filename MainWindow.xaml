@@ -141,7 +141,8 @@
                             Padding="5,0,0,0"
                             FontFamily="Segoe UI"
                             FontSize="22"
-                            TextChanged="TextBox_TextChanged_f" />
+                            TextChanged="TextBox_TextChanged_f" 
+                            x:Name="inputF"/>
                     </StackPanel>
 
                     <StackPanel
@@ -160,7 +161,8 @@
                             FontFamily="Segoe UI"
                             FontSize="22"
                             Tag="inputA"
-                            TextChanged="TextBox_TextChanged" />
+                            TextChanged="TextBox_TextChanged" 
+                            x:Name="inputA"/>
                     </StackPanel>
 
                     <StackPanel
@@ -179,7 +181,8 @@
                             FontFamily="Segoe UI"
                             FontSize="22"
                             Tag="inputB"
-                            TextChanged="TextBox_TextChanged" />
+                            TextChanged="TextBox_TextChanged" 
+                            x:Name="inputB"/>
                     </StackPanel>
 
                     <StackPanel
@@ -198,7 +201,8 @@
                             FontFamily="Segoe UI"
                             FontSize="22"
                             Tag="inputE"
-                            TextChanged="TextBox_TextChanged" />
+                            TextChanged="TextBox_TextChanged" 
+                            x:Name="inputE"/>
                     </StackPanel>
 
                     <StackPanel
