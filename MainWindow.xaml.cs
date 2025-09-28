@@ -2,7 +2,6 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Media;
 
 namespace MyProject
@@ -25,29 +24,59 @@ namespace MyProject
 
             if (!string.IsNullOrEmpty(function) && E > 0)
             {
+                if (!dichotomy.CheckInterval())
+                {
+                    MessageBox.Show("Выберите другой интервал.");
+                    return;
+                }
+                
                 double root = dichotomy.Solve();
 
-                if (root != 0 || (a == 0 || b == 0))
+                if (root != 0 || (a != 0 && b != 0))
                 {
                     ChartBuilder chart = new ChartBuilder(function);
                     chart.DrawChart(ChartLine, a, b);
-                    chart.PointRoot(ChartLine, root);
                     inputRoot.Text = root.ToString();
+                    try
+                    {
+                        chart.PointRoot(ChartLine, root);
+                    }
+                    catch
+                    {
+                        return;
+                    }
                 }
                 else
                 {
-                    Console.WriteLine("Корень не найден");
+                    MessageBox.Show("Корень не найден");
                 }
             }
             else
             {
-                Console.WriteLine("Введите данные!");
+                MessageBox.Show("Введите данные!");
             }
         }
 
-        private void Button1_Click(object sender, RoutedEventArgs e)
+        private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-
+            inputF.Text = ""; 
+            inputA.Text = "";
+            inputB.Text = "";
+            inputE.Text = "";
+            inputRoot.Text = "";
+            
+            ChartLine.Series.Clear();
+            
+            function = "";
+            a = 0;
+            b = 0;
+            E = 0;
+            
+            inputA.BorderBrush = Brushes.Gray;
+            inputB.BorderBrush = Brushes.Gray;
+            inputE.BorderBrush = Brushes.Gray;
+                     
+            MessageBox.Show("Данные очищены!");
         }
 
         private void TextBox_TextChanged_f(object sender, TextChangedEventArgs e)
@@ -89,6 +118,13 @@ namespace MyProject
                     E = value;
                     break;
             }
+        }
+
+        private void Method_Dichotomy(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Метод половинного деления (метод дихотомии или метод бисекции)\n\n" +
+                "Данный метод описывает алгоритм нахождение корней (нулей) функции. " +
+                "Чтобы найти минимум целевой функции методом дихотомии используйте этот калькулятор.");
         }
     }
 }
