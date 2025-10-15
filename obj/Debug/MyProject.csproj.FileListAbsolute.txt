@@ -1,0 +1,17 @@
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.csproj.AssemblyReference.cache
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MainWindow.g.cs
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\App.g.cs
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject_MarkupCompile.cache
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject_MarkupCompile.lref
+C:\Users\Tzinch\source\repos\MyProject\bin\Debug\MyProject.exe.config
+C:\Users\Tzinch\source\repos\MyProject\bin\Debug\MyProject.exe
+C:\Users\Tzinch\source\repos\MyProject\bin\Debug\MyProject.pdb
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MainWindow.baml
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.g.resources
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.Properties.Resources.resources
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.csproj.GenerateResource.cache
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.csproj.CoreCompileInputs.cache
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.exe
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.pdb
+C:\Users\Tzinch\source\repos\MyProject\bin\Debug\MathParser.dll
+C:\Users\Tzinch\source\repos\MyProject\obj\Debug\MyProject.csproj.Up2Date
