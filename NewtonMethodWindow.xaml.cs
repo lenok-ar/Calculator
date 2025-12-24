@@ -1,4 +1,4 @@
-﻿// page/NewtonMethodWindow.xaml.cs
+// page/NewtonMethodWindow.xaml.cs
 using System;
 using System.Globalization;
 using System.IO;
@@ -10,6 +10,7 @@ using System.Windows.Forms.DataVisualization.Charting;
 using System.Windows.Forms.Integration;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 namespace Calculator.page
 {
@@ -20,23 +21,44 @@ namespace Calculator.page
 
         public NewtonMethodWindow()
         {
-            InitializeComponent();
-            InitializeControls();
+            try
+            {
+                InitializeComponent();
+
+                // Отладочная информация в консоль
+                Debug.WriteLine("=== NewtonMethodWindow конструктор ===");
+                Debug.WriteLine($"CalculateButton: {CalculateButton != null}");
+                Debug.WriteLine($"FunctionTextBox: {FunctionTextBox != null}");
+                Debug.WriteLine($"InitialPointTextBox: {InitialPointTextBox != null}");
+                Debug.WriteLine($"PrecisionTextBox: {PrecisionTextBox != null}");
+
+                InitializeControls();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка инициализации: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void InitializeControls()
         {
-            // Инициализация графика
-            InitializeChart();
+            try
+            {
+                InitializeChart();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка инициализации графика: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void InitializeChart()
         {
-            // Создаем Windows Forms Chart
             chart = new System.Windows.Forms.DataVisualization.Charting.Chart();
             chart.Size = new System.Drawing.Size(600, 400);
 
-            // Настраиваем область графика
             ChartArea chartArea = new ChartArea();
             chartArea.AxisX.Title = "x";
             chartArea.AxisY.Title = "f(x)";
@@ -44,14 +66,12 @@ namespace Calculator.page
             chartArea.AxisY.LabelStyle.Format = "F2";
             chart.ChartAreas.Add(chartArea);
 
-            // Добавляем серию для функции
             Series functionSeries = new Series("f(x)");
             functionSeries.ChartType = SeriesChartType.Line;
             functionSeries.Color = System.Drawing.Color.Blue;
             functionSeries.BorderWidth = 2;
             chart.Series.Add(functionSeries);
 
-            // Добавляем серию для точки минимума
             Series minimumSeries = new Series("Минимум");
             minimumSeries.ChartType = SeriesChartType.Point;
             minimumSeries.Color = System.Drawing.Color.Red;
@@ -59,7 +79,6 @@ namespace Calculator.page
             minimumSeries.MarkerStyle = MarkerStyle.Circle;
             chart.Series.Add(minimumSeries);
 
-            // Добавляем серию для итераций
             Series iterationsSeries = new Series("Итерации");
             iterationsSeries.ChartType = SeriesChartType.Point;
             iterationsSeries.Color = System.Drawing.Color.Green;
@@ -67,11 +86,9 @@ namespace Calculator.page
             iterationsSeries.MarkerStyle = MarkerStyle.Triangle;
             chart.Series.Add(iterationsSeries);
 
-            // Добавляем в WindowsFormsHost
             WindowsFormsHost host = new WindowsFormsHost();
             host.Child = chart;
 
-            // Создаем контейнер для графика
             System.Windows.Controls.Grid chartGrid = new System.Windows.Controls.Grid();
             chartGrid.Children.Add(host);
             ChartContainer.Content = chartGrid;
@@ -81,11 +98,9 @@ namespace Calculator.page
         {
             try
             {
-                // Проверка входных данных
                 if (!ValidateInputs())
                     return;
 
-                // Получение значений
                 string function = FunctionTextBox.Text;
                 double x0 = double.Parse(InitialPointTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
                 double epsilon = double.Parse(PrecisionTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
@@ -93,10 +108,8 @@ namespace Calculator.page
                 double a = double.Parse(StartIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
                 double b = double.Parse(EndIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
 
-                // Создание метода Ньютона
                 newtonMethod = new NewtonMethod(function);
 
-                // Проверка функции на интервале
                 if (!newtonMethod.TestFunctionOnInterval(a, b))
                 {
                     MessageBox.Show("Функция не определена или имеет разрывы на заданном интервале",
@@ -104,13 +117,8 @@ namespace Calculator.page
                     return;
                 }
 
-                // Поиск минимума методом Ньютона
                 NewtonResult result = newtonMethod.FindMinimum(x0, epsilon, maxIterations, a, b);
-
-                // Отображение результатов
                 DisplayResults(result);
-
-                // Обновление графика
                 UpdateChart(a, b, result);
             }
             catch (Exception ex)
@@ -122,39 +130,38 @@ namespace Calculator.page
 
         private void DisplayResults(NewtonResult result)
         {
-            int decimalPlaces = GetDecimalPlaces(result.MinimumPoint);
-
-            ResultTextBox.Text = $"Метод Ньютона для поиска минимума:\n\n";
-            ResultTextBox.Text += $"Точка минимума: x = {result.MinimumPoint:F6}\n";
-            ResultTextBox.Text += $"Значение функции: f(x) = {result.MinimumValue:F6}\n";
-            ResultTextBox.Text += $"Количество итераций: {result.Iterations}\n";
-            ResultTextBox.Text += $"Первая производная: f'(x) = {result.FinalDerivative:E4}\n";
-            ResultTextBox.Text += $"Вторая производная: f''(x) = {result.FinalSecondDerivative:E4}\n";
-            ResultTextBox.Text += $"Статус: {(result.IsMinimum ? "Минимум найден" : "Минимум не найден")}\n";
-            ResultTextBox.Text += $"Сообщение: {result.ConvergenceMessage}";
-
-            // Очистка списка итераций
-            IterationsListBox.Items.Clear();
-
-            // Добавление пошаговых итераций
-            if (result.StepByStepIterations != null && result.StepByStepIterations.Any())
+            try
             {
-                foreach (var iteration in result.StepByStepIterations)
-                {
-                    string iterationText = $"Итерация {iteration.Iteration + 1}: ";
-                    iterationText += $"x = {iteration.X:F6}, ";
-                    iterationText += $"f(x) = {iteration.FunctionValue:F6}, ";
-                    iterationText += $"f' = {iteration.FirstDerivative:E3}, ";
-                    iterationText += $"f'' = {iteration.SecondDerivative:E3}";
+                int decimalPlaces = GetDecimalPlaces(result.MinimumPoint);
 
-                    IterationsListBox.Items.Add(iterationText);
-                }
+                ResultTextBox.Text += $"Точка минимума: x = {result.MinimumPoint:F6}\n";
+                ResultTextBox.Text += $"Значение функции: f(x) = {result.MinimumValue:F6}\n";
+                ResultTextBox.Text += $"Количество итераций: {result.Iterations}\n";
+                ResultTextBox.Text += $"Первая производная: f'(x) = {result.FinalDerivative:E4}\n";
+                ResultTextBox.Text += $"Вторая производная: f''(x) = {result.FinalSecondDerivative:E4}\n";
+                
 
-                // Прокрутка к последней итерации
-                if (IterationsListBox.Items.Count > 0)
+
+                // Добавление пошаговых итераций
+                if (result.StepByStepIterations != null && result.StepByStepIterations.Any())
                 {
-                    IterationsListBox.ScrollIntoView(IterationsListBox.Items[IterationsListBox.Items.Count - 1]);
+                    foreach (var iteration in result.StepByStepIterations)
+                    {
+                        string iterationText = $"Итерация {iteration.Iteration + 1}: ";
+                        iterationText += $"x = {iteration.X:F6}, ";
+                        iterationText += $"f(x) = {iteration.FunctionValue:F6}, ";
+                        iterationText += $"f' = {iteration.FirstDerivative:E3}, ";
+                        iterationText += $"f'' = {iteration.SecondDerivative:E3}";
+
+                    }
+
+
                 }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка отображения результатов: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -246,79 +253,8 @@ namespace Calculator.page
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка при обновлении графика: {ex.Message}");
+                Debug.WriteLine($"Ошибка при обновлении графика: {ex.Message}");
             }
-        }
-
-        private bool ValidateInputs()
-        {
-            // Проверка функции
-            if (string.IsNullOrWhiteSpace(FunctionTextBox.Text))
-            {
-                MessageBox.Show("Введите функцию", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка начальной точки
-            if (!double.TryParse(InitialPointTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double x0))
-            {
-                MessageBox.Show("Некорректное значение начальной точки", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка точности
-            if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
-            {
-                MessageBox.Show("Некорректное значение точности", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (epsilon <= 0)
-            {
-                MessageBox.Show("Точность должна быть положительной", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка максимального количества итераций
-            if (!int.TryParse(MaxIterationsTextBox.Text, out int maxIterations))
-            {
-                MessageBox.Show("Некорректное значение максимального количества итераций", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (maxIterations <= 0)
-            {
-                MessageBox.Show("Максимальное количество итераций должно быть положительным", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка интервала
-            if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
-            {
-                MessageBox.Show("Некорректное значение начала интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
-            {
-                MessageBox.Show("Некорректное значение конца интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (a >= b)
-            {
-                MessageBox.Show("Начало интервала должно быть меньше конца", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка, что начальная точка в интервале
-            if (x0 < a || x0 > b)
-            {
-                MessageBox.Show("Начальная точка должна находиться в интервале [a, b]", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            return true;
         }
 
         private int GetDecimalPlaces(double value)
@@ -376,7 +312,6 @@ namespace Calculator.page
             StartIntervalTextBox.Text = "-2";
             EndIntervalTextBox.Text = "2";
             ResultTextBox.Text = "";
-            IterationsListBox.Items.Clear();
 
             // Очистка графика
             if (chart != null)
@@ -399,48 +334,6 @@ namespace Calculator.page
                 NavigationService.Navigate(new Menu());
             }
         }
-
-        private void ExportButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                using (SaveFileDialog saveDialog = new SaveFileDialog())
-                {
-                    saveDialog.Filter = "Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*";
-                    saveDialog.Title = "Экспорт результатов";
-                    saveDialog.DefaultExt = "txt";
-                    saveDialog.FileName = $"newton_method_results_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
-
-                    if (saveDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                    {
-                        string content = $"Результаты метода Ньютона\n";
-                        content += $"Дата: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n";
-                        content += $"Функция: {FunctionTextBox.Text}\n";
-                        content += $"Начальная точка: {InitialPointTextBox.Text}\n";
-                        content += $"Точность: {PrecisionTextBox.Text}\n";
-                        content += $"Макс. итераций: {MaxIterationsTextBox.Text}\n";
-                        content += $"Интервал: [{StartIntervalTextBox.Text}, {EndIntervalTextBox.Text}]\n\n";
-                        content += $"РЕЗУЛЬТАТЫ:\n{ResultTextBox.Text}\n\n";
-                        content += $"ПОШАГОВЫЕ ИТЕРАЦИИ:\n";
-
-                        foreach (var item in IterationsListBox.Items)
-                        {
-                            content += $"{item}\n";
-                        }
-
-                        File.WriteAllText(saveDialog.FileName, content);
-                        MessageBox.Show("Результаты успешно экспортированы", "Экспорт",
-                            MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при экспорте: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
         private void TestDataButton_Click(object sender, RoutedEventArgs e)
         {
             // Тестовые данные для метода Ньютона
@@ -454,35 +347,80 @@ namespace Calculator.page
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            // Валидация при изменении текста
-            bool isValid = ValidateInputsSilent();
-            CalculateButton.IsEnabled = isValid;
-            AutoStartButton.IsEnabled = ValidateIntervalSilent();
+            try
+            {
+                // Безопасная проверка элементов
+                if (CalculateButton == null ||
+                    FunctionTextBox == null ||
+                    InitialPointTextBox == null ||
+                    PrecisionTextBox == null ||
+                    MaxIterationsTextBox == null ||
+                    StartIntervalTextBox == null ||
+                    EndIntervalTextBox == null)
+                {
+                    Debug.WriteLine("Один или несколько элементов UI равны null");
+                    return;
+                }
+
+                bool isValid = ValidateInputsSilent();
+                if (CalculateButton != null)
+                    CalculateButton.IsEnabled = isValid;
+
+                if (AutoStartButton != null)
+                    AutoStartButton.IsEnabled = ValidateIntervalSilent();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка в TextBox_TextChanged: {ex.Message}");
+            }
         }
 
         private bool ValidateInputsSilent()
         {
             try
             {
+                // Проверка наличия элементов
+                if (FunctionTextBox == null ||
+                    InitialPointTextBox == null ||
+                    PrecisionTextBox == null ||
+                    MaxIterationsTextBox == null ||
+                    StartIntervalTextBox == null ||
+                    EndIntervalTextBox == null)
+                {
+                    return false;
+                }
+
+                // Проверка функции
                 if (string.IsNullOrWhiteSpace(FunctionTextBox.Text))
                     return false;
 
-                if (!double.TryParse(InitialPointTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double x0))
+                // Проверка начальной точки
+                if (!double.TryParse(InitialPointTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double x0))
                     return false;
 
-                if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
+                // Проверка точности
+                if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
                     return false;
 
                 if (epsilon <= 0)
                     return false;
 
-                if (!int.TryParse(MaxIterationsTextBox.Text, out int maxIterations) || maxIterations <= 0)
+                // Проверка максимального количества итераций
+                if (!int.TryParse(MaxIterationsTextBox.Text, out int maxIterations))
                     return false;
 
-                if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
+                if (maxIterations <= 0)
                     return false;
 
-                if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
+                // Проверка интервала
+                if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
+                    return false;
+
+                if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
                     return false;
 
                 if (a >= b)
@@ -499,20 +437,87 @@ namespace Calculator.page
             }
         }
 
+        private bool ValidateInputs()
+        {
+            if (string.IsNullOrWhiteSpace(FunctionTextBox.Text))
+            {
+                MessageBox.Show("Введите функцию", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!double.TryParse(InitialPointTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double x0))
+            {
+                MessageBox.Show("Некорректное значение начальной точки", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
+            {
+                MessageBox.Show("Некорректное значение точности", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (epsilon <= 0)
+            {
+                MessageBox.Show("Точность должна быть положительной", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!int.TryParse(MaxIterationsTextBox.Text, out int maxIterations))
+            {
+                MessageBox.Show("Некорректное значение максимального количества итераций", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (maxIterations <= 0)
+            {
+                MessageBox.Show("Максимальное количество итераций должно быть положительным", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
+            {
+                MessageBox.Show("Некорректное значение начала интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
+            {
+                MessageBox.Show("Некорректное значение конца интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (a >= b)
+            {
+                MessageBox.Show("Начало интервала должно быть меньше конца", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (x0 < a || x0 > b)
+            {
+                MessageBox.Show("Начальная точка должна находиться в интервале [a, b]", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+        }
+
         private bool ValidateIntervalSilent()
         {
             try
             {
-                if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
+                if (StartIntervalTextBox == null || EndIntervalTextBox == null)
                     return false;
 
-                if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
+                if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
                     return false;
 
-                if (a >= b)
+                if (!double.TryParse(EndIntervalTextBox.Text.Replace(",", "."),
+                    NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
                     return false;
 
-                return true;
+                return a < b;
             }
             catch
             {
