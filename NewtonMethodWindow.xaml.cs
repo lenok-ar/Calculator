@@ -1,4 +1,4 @@
-// page/NewtonMethodWindow.xaml.cs
+﻿// page/NewtonMethodWindow.xaml.cs
 using System;
 using System.Globalization;
 using System.IO;
@@ -11,6 +11,9 @@ using System.Windows.Forms.Integration;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+
+// ДОБАВЬТЕ ЭТУ СТРОЧКУ:
+using Calculator;
 
 namespace Calculator.page
 {
@@ -101,25 +104,31 @@ namespace Calculator.page
                 if (!ValidateInputs())
                     return;
 
-                string function = FunctionTextBox.Text;
+                string function = PreprocessFunction(FunctionTextBox.Text);
                 double x0 = double.Parse(InitialPointTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
                 double epsilon = double.Parse(PrecisionTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
                 int maxIterations = int.Parse(MaxIterationsTextBox.Text);
                 double a = double.Parse(StartIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
                 double b = double.Parse(EndIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
 
-                newtonMethod = new NewtonMethod(function);
+                newtonMethod = new Calculator.NewtonMethod(function);
 
                 if (!newtonMethod.TestFunctionOnInterval(a, b))
                 {
-                    MessageBox.Show("Функция не определена или имеет разрывы на заданном интервале",
+                    MessageBox.Show("Функция не определена или имеет разрывы на заданном интервале\n" +
+                                  "Проверьте правильность функции или измените интервал",
                                   "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                NewtonResult result = newtonMethod.FindMinimum(x0, epsilon, maxIterations, a, b);
+                Calculator.NewtonResult result = newtonMethod.FindMinimum(x0, epsilon, maxIterations, a, b);
                 DisplayResults(result);
                 UpdateChart(a, b, result);
+            }
+            catch (FormatException)
+            {
+                MessageBox.Show("Некорректный формат чисел. Используйте точку или запятую как разделитель.",
+                              "Ошибка формата", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             catch (Exception ex)
             {
@@ -128,23 +137,40 @@ namespace Calculator.page
             }
         }
 
-        private void DisplayResults(NewtonResult result)
+        private string PreprocessFunction(string function)
+        {
+            if (string.IsNullOrWhiteSpace(function))
+                return function;
+
+            // Заменяем запятые на точки
+            string result = function.Replace(",", ".");
+
+            // Приводим к нижнему регистру
+            result = result.ToLower();
+
+            // Заменяем ^ на ** для DataTable
+            result = result.Replace("^", "**");
+
+            return result;
+        }
+
+        private void DisplayResults(Calculator.NewtonResult result)
         {
             try
             {
-                int decimalPlaces = GetDecimalPlaces(result.MinimumPoint);
-
+                ResultTextBox.Text = $"Метод Ньютона для поиска минимума:\n\n";
                 ResultTextBox.Text += $"Точка минимума: x = {result.MinimumPoint:F6}\n";
                 ResultTextBox.Text += $"Значение функции: f(x) = {result.MinimumValue:F6}\n";
                 ResultTextBox.Text += $"Количество итераций: {result.Iterations}\n";
                 ResultTextBox.Text += $"Первая производная: f'(x) = {result.FinalDerivative:E4}\n";
                 ResultTextBox.Text += $"Вторая производная: f''(x) = {result.FinalSecondDerivative:E4}\n";
-                
-
+                ResultTextBox.Text += $"Статус: {result.ConvergenceMessage}\n\n";
 
                 // Добавление пошаговых итераций
                 if (result.StepByStepIterations != null && result.StepByStepIterations.Any())
                 {
+                    ResultTextBox.Text += $"ПОШАГОВЫЕ ИТЕРАЦИИ:\n";
+
                     foreach (var iteration in result.StepByStepIterations)
                     {
                         string iterationText = $"Итерация {iteration.Iteration + 1}: ";
@@ -153,9 +179,8 @@ namespace Calculator.page
                         iterationText += $"f' = {iteration.FirstDerivative:E3}, ";
                         iterationText += $"f'' = {iteration.SecondDerivative:E3}";
 
+                        ResultTextBox.Text += $"{iterationText}\n";
                     }
-
-
                 }
             }
             catch (Exception ex)
@@ -178,11 +203,16 @@ namespace Calculator.page
                     series.Points.Clear();
                 }
 
+                // Находим series по имени
+                Series functionSeries = chart.Series.FirstOrDefault(s => s.Name == "f(x)");
+                Series minimumSeries = chart.Series.FirstOrDefault(s => s.Name == "Минимум");
+                Series iterationsSeries = chart.Series.FirstOrDefault(s => s.Name == "Итерации");
+
+                if (functionSeries == null) return;
+
                 // Генерация точек для графика функции
                 int pointsCount = 400;
                 double step = (b - a) / pointsCount;
-
-                Series functionSeries = chart.Series["f(x)"];
 
                 double minY = double.MaxValue;
                 double maxY = double.MinValue;
@@ -207,38 +237,38 @@ namespace Calculator.page
                     }
                 }
 
-                // Настраиваем ось X
-                chart.ChartAreas[0].AxisX.Minimum = a;
-                chart.ChartAreas[0].AxisX.Maximum = b;
-                chart.ChartAreas[0].AxisX.Interval = Math.Max((b - a) / 10, 0.1);
-
-                // Настраиваем ось Y с отступами
-                if (minY != double.MaxValue && maxY != double.MinValue)
+                // Настраиваем оси
+                if (chart.ChartAreas.Count > 0)
                 {
-                    if (minY == maxY)
-                    {
-                        minY -= 1;
-                        maxY += 1;
-                    }
+                    // Ось X
+                    chart.ChartAreas[0].AxisX.Minimum = a;
+                    chart.ChartAreas[0].AxisX.Maximum = b;
+                    chart.ChartAreas[0].AxisX.Interval = Math.Max((b - a) / 10, 0.1);
 
-                    double padding = Math.Max(Math.Abs(maxY - minY) * 0.1, 0.1);
-                    chart.ChartAreas[0].AxisY.Minimum = minY - padding;
-                    chart.ChartAreas[0].AxisY.Maximum = maxY + padding;
-                    chart.ChartAreas[0].AxisY.Interval = Math.Max((maxY - minY) / 10, 0.1);
+                    // Ось Y с отступами
+                    if (minY != double.MaxValue && maxY != double.MinValue)
+                    {
+                        if (minY == maxY)
+                        {
+                            minY -= 1;
+                            maxY += 1;
+                        }
+
+                        double padding = Math.Max(Math.Abs(maxY - minY) * 0.1, 0.1);
+                        chart.ChartAreas[0].AxisY.Minimum = minY - padding;
+                        chart.ChartAreas[0].AxisY.Maximum = maxY + padding;
+                        chart.ChartAreas[0].AxisY.Interval = Math.Max((maxY - minY) / 10, 0.1);
+                    }
                 }
 
                 // Добавляем точку минимума
-                Series minimumSeries = chart.Series["Минимум"];
-                minimumSeries.Points.Clear();
-                if (result.IsMinimum)
+                if (minimumSeries != null && result.IsMinimum)
                 {
                     minimumSeries.Points.AddXY(result.MinimumPoint, result.MinimumValue);
                 }
 
                 // Добавляем точки итераций
-                Series iterationsSeries = chart.Series["Итерации"];
-                iterationsSeries.Points.Clear();
-                if (result.StepByStepIterations != null)
+                if (iterationsSeries != null && result.StepByStepIterations != null)
                 {
                     foreach (var iteration in result.StepByStepIterations)
                     {
@@ -247,9 +277,11 @@ namespace Calculator.page
                 }
 
                 // Обновляем легенду
-                chart.Legends.Clear();
-                Legend legend = new Legend();
-                chart.Legends.Add(legend);
+                if (chart.Legends.Count == 0)
+                {
+                    Legend legend = new Legend();
+                    chart.Legends.Add(legend);
+                }
             }
             catch (Exception ex)
             {
@@ -257,42 +289,31 @@ namespace Calculator.page
             }
         }
 
-        private int GetDecimalPlaces(double value)
-        {
-            if (value == 0) return 6;
-
-            string str = Math.Abs(value).ToString(CultureInfo.InvariantCulture);
-            if (str.Contains("."))
-            {
-                int decimalPlaces = str.Split('.')[1].Length;
-                return Math.Min(Math.Max(decimalPlaces, 3), 12);
-            }
-
-            return 6;
-        }
-
         private void AutoStartButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (!double.TryParse(StartIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a) ||
-                    !double.TryParse(EndIntervalTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
+                if (!ValidateInputsSilent())
                 {
-                    MessageBox.Show("Сначала укажите корректный интервал [a, b]", "Ошибка",
+                    MessageBox.Show("Сначала заполните все поля корректно", "Ошибка",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (newtonMethod == null && !string.IsNullOrWhiteSpace(FunctionTextBox.Text))
+                string function = PreprocessFunction(FunctionTextBox.Text);
+                double a = double.Parse(StartIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
+                double b = double.Parse(EndIntervalTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
+
+                if (newtonMethod == null || newtonMethod.TestFunctionOnInterval(a, b) == false)
                 {
-                    newtonMethod = new NewtonMethod(FunctionTextBox.Text);
+                    newtonMethod = new Calculator.NewtonMethod(function);
                 }
 
                 if (newtonMethod != null)
                 {
                     double goodStart = newtonMethod.FindGoodStartingPoint(a, b);
-                    InitialPointTextBox.Text = goodStart.ToString("F3");
-                    MessageBox.Show($"Автоматически подобрана начальная точка: x0 = {goodStart:F3}",
+                    InitialPointTextBox.Text = goodStart.ToString("F6");
+                    MessageBox.Show($"Автоматически подобрана начальная точка: x0 = {goodStart:F6}",
                                   "Автоподбор", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
@@ -334,6 +355,7 @@ namespace Calculator.page
                 NavigationService.Navigate(new Menu());
             }
         }
+
         private void TestDataButton_Click(object sender, RoutedEventArgs e)
         {
             // Тестовые данные для метода Ньютона
