@@ -1,0 +1,199 @@
+﻿<Page
+    x:Class="Calculator.page.NewtonMethodWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:wf="clr-namespace:System.Windows.Forms.DataVisualization.Charting;assembly=System.Windows.Forms.DataVisualization"
+    Title="Метод Ньютона"
+    d:DesignHeight="700"
+    d:DesignWidth="1100"
+    mc:Ignorable="d"
+    Background="#F5F7FA">
+
+    <Page.Resources>
+        <Style x:Key="TitleStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#2C3E50" />
+        </Style>
+
+        <Style x:Key="SubtitleStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="Foreground" Value="#5D6D7E" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#2C3E50" />
+            <Setter Property="Margin" Value="0,15,0,5" />
+        </Style>
+
+        <Style x:Key="TextBoxStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#E0E0E0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Height" Value="40" />
+        </Style>
+
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="15,10" />
+            <Setter Property="Background" Value="#3498DB" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#2980B9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#BDC3C7" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="#95A5A6" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#7F8C8D" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ResultsTextBoxStyle" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Background" Value="#F8F9FA" />
+            <Setter Property="BorderBrush" Value="#E0E0E0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+    </Page.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Style="{StaticResource TitleStyle}" Text="Метод Ньютона" />
+            <TextBlock Style="{StaticResource SubtitleStyle}" Text="Поиск минимума функции с использованием производных" />
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1" Padding="20">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="10" Opacity="0.1" ShadowDepth="2" />
+                </Border.Effect>
+
+                <StackPanel>
+                    <Button x:Name="BackButton" Style="{StaticResource SecondaryButtonStyle}" Content="← Назад" Click="BackButton_Click" HorizontalAlignment="Left" Margin="0,0,0,15" Padding="20,10" />
+                    <TextBlock Style="{StaticResource LabelStyle}" Text="Функция f(x):" />
+                    <TextBox x:Name="FunctionTextBox" Style="{StaticResource TextBoxStyle}" Text="x^2" TextChanged="TextBox_TextChanged" />
+                    <TextBlock Style="{StaticResource LabelStyle}" Text="Начальная точка (x0):" />
+                    <TextBox x:Name="InitialPointTextBox" Style="{StaticResource TextBoxStyle}" Text="1" TextChanged="TextBox_TextChanged" />
+                    <TextBlock Style="{StaticResource LabelStyle}" Text="Точность (ε):" />
+                    <TextBox x:Name="PrecisionTextBox" Style="{StaticResource TextBoxStyle}" Text="0.001" TextChanged="TextBox_TextChanged" />
+                    <TextBlock Style="{StaticResource LabelStyle}" Text="Макс. итераций:" />
+                    <TextBox x:Name="MaxIterationsTextBox" Style="{StaticResource TextBoxStyle}" Text="100" TextChanged="TextBox_TextChanged" />
+                    <TextBlock Style="{StaticResource LabelStyle}" Text="Интервал графика [a,b]:" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="StartIntervalTextBox" Grid.Column="0" Style="{StaticResource TextBoxStyle}" Text="-2" TextChanged="TextBox_TextChanged" />
+                        <TextBlock Grid.Column="1" Text="—" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <TextBox x:Name="EndIntervalTextBox" Grid.Column="2" Style="{StaticResource TextBoxStyle}" Text="2" TextChanged="TextBox_TextChanged" />
+                    </Grid>
+                    <Button x:Name="AutoStartButton" Style="{StaticResource SecondaryButtonStyle}" Content="Автоподбор начальной точки" Click="AutoStartButton_Click" Margin="0,20,0,10" Height="40" />
+                    <Button x:Name="CalculateButton" Style="{StaticResource ButtonStyle}" Content="Найти минимум" Click="CalculateButton_Click" Margin="0,0,0,10" Height="45" />
+                    <Button x:Name="ClearButton" Style="{StaticResource SecondaryButtonStyle}" Content="Очистить" Click="ClearButton_Click" Height="40" />
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="20" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1" Padding="20">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" Opacity="0.1" ShadowDepth="2" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource LabelStyle}" Text="Результаты поиска минимума:" />
+                            <TextBox x:Name="ResultTextBox" Style="{StaticResource ResultsTextBoxStyle}" Height="120" Margin="0,0,0,10" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1" Padding="20">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" Opacity="0.1" ShadowDepth="2" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Style="{StaticResource LabelStyle}" Text="График функции" Margin="0,0,0,10" />
+                        <Border Grid.Row="1" Margin="20,0,20,20" Background="White">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="5" Opacity="0.05" ShadowDepth="1" />
+                            </Border.Effect>
+                            <ContentControl x:Name="ChartContainer" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,10,0,0">
+            <Button x:Name="TestDataButton" Style="{StaticResource SecondaryButtonStyle}" Content="Тестовые данные" Click="TestDataButton_Click" />
+        </StackPanel>
+    </Grid>
+</Page>
