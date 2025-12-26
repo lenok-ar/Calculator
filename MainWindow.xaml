@@ -18,7 +18,6 @@
     </Window.Background>
 
     <Grid>
-        <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden" />
+        <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden" Navigated="MainFrame_Navigated" />
     </Grid>
-
 </Window>

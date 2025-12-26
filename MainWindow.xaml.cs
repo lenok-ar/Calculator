@@ -1,5 +1,4 @@
-﻿using LiveChartsCore;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Documents;
 
@@ -11,6 +10,11 @@ namespace Calculator
         {
             InitializeComponent();
             MainFrame.Navigate(new Menu());
+        }
+
+        private void MainFrame_Navigated(object sender, System.Windows.Navigation.NavigationEventArgs e)
+        {
+
         }
     }
 }

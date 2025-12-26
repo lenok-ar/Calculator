@@ -12,7 +12,6 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using OfficeOpenXml;
-using ServiceStack;
 
 namespace Calculator.page
 {
@@ -2107,6 +2106,11 @@ namespace Calculator.page
         }
 
         private void ExecutionTimeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+
+        }
+
+        private void ExecutionTimeTextBox_TextChanged_1(object sender, TextChangedEventArgs e)
         {
 
         }

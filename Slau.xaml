@@ -149,10 +149,6 @@
                             Click="HandleImportFromGoogleSheets"
                             Style="{StaticResource ModernButton}"
                             Margin="0,5" />
-                    <Button Content="Создать шаблон" 
-                            Click="HandleCreateTemplate"
-                            Style="{StaticResource ModernButton}"
-                            Margin="0,5" />
                 </StackPanel>
 
                 <TextBlock Grid.Row="4" Text="Генерация данных:" 
@@ -302,12 +298,7 @@
                         FontSize="11"
                         IsReadOnly="True"
                         Background="#F8F9FA"
-                        Margin="0,5,0,0" />
-
-                <Button Grid.Row="7" Content="Экспорт в Excel" 
-                        Click="HandleExportToExcel"
-                        Style="{StaticResource ModernButton}"
-                        Margin="0,70,0,0" />
+                        Margin="0,5,0,0" TextChanged="ExecutionTimeTextBox_TextChanged_1" />
             </Grid>
         </Border>
     </Grid>

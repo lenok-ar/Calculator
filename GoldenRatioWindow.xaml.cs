@@ -1,434 +1,796 @@
-﻿using System;
-using System.Globalization;
-using System.IO;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Forms;
-using MessageBox = System.Windows.MessageBox;
-using System.Windows.Media;
+﻿using NCalc;
+using OxyPlot;
+using OxyPlot.Axes;
+using OxyPlot.Series;
+using OxyPlot.Annotations;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
-using System.Windows.Forms.DataVisualization.Charting;
-using System.Windows.Forms.Integration;
+using System.Threading;
+using System.Windows;
+using System.Threading.Tasks;
+using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Calculator.page
 {
     public partial class GoldenRatioWindow : Page
     {
-        private GoldenRatioMethod goldenRatioMethod;
-        private bool isFindingExtremum = false;
-        private System.Windows.Forms.DataVisualization.Charting.Chart chart;
+        private CancellationTokenSource _cancellationTokenSource;
+        private bool _isCalculating = false;
+
+        private const double GoldenRatio = 0.618033988749895; // (sqrt(5) - 1) / 2
+
+        // Типы поиска
+        private enum SearchType { Minimum, Maximum, Root }
+
+        // Определяем Point структуру, если она не определена
+        public struct Point
+        {
+            public double X { get; set; }
+            public double Y { get; set; }
+
+            public Point(double x, double y)
+            {
+                X = x;
+                Y = y;
+            }
+        }
 
         public GoldenRatioWindow()
         {
             InitializeComponent();
-
-            // Проверяем, что элементы были инициализированы
-            if (CalculateRootButton == null || CalculateExtremumButton == null)
-            {
-                MessageBox.Show("Ошибка загрузки элементов управления");
-            }
-
-            InitializeControls();
         }
 
-        private void InitializeControls()
+        private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            // Инициализация ComboBox
-            TaskTypeComboBox.SelectedIndex = 0;
-            ExtremumTypeComboBox.SelectedIndex = 0;
-
-            // Инициализация графика
-            InitializeChart();
-
-            // Изначально скрываем панель выбора типа экстремума
-            ExtremumTypePanel.Visibility = Visibility.Collapsed;
-
-            // Проверяем кнопки на null перед обращением
-            if (CalculateExtremumButton != null)
-                CalculateExtremumButton.IsEnabled = false;
-
-            if (CalculateRootButton != null)
-                CalculateRootButton.IsEnabled = true;
-        }
-
-        private void InitializeChart()
-        {
-            // Создаем Windows Forms Chart
-            chart = new System.Windows.Forms.DataVisualization.Charting.Chart();
-            chart.Size = new System.Drawing.Size(600, 400);
-
-            // Настраиваем область графика
-            ChartArea chartArea = new ChartArea();
-            chartArea.AxisX.Title = "x";
-            chartArea.AxisY.Title = "f(x)";
-            chartArea.AxisX.LabelStyle.Format = "F2";
-            chartArea.AxisY.LabelStyle.Format = "F2";
-            chart.ChartAreas.Add(chartArea);
-
-            // Добавляем серию для функции
-            Series functionSeries = new Series("f(x)");
-            functionSeries.ChartType = SeriesChartType.Line;
-            functionSeries.Color = System.Drawing.Color.Blue;
-            functionSeries.BorderWidth = 2;
-            chart.Series.Add(functionSeries);
-
-            // Добавляем серию для точки решения
-            Series solutionSeries = new Series("Решение");
-            solutionSeries.ChartType = SeriesChartType.Point;
-            solutionSeries.Color = System.Drawing.Color.Red;
-            solutionSeries.MarkerSize = 10;
-            solutionSeries.MarkerStyle = MarkerStyle.Circle;
-            chart.Series.Add(solutionSeries);
-
-            // Добавляем в WindowsFormsHost
-            WindowsFormsHost host = new WindowsFormsHost();
-            host.Child = chart;
-
-            // Создаем контейнер для графика с указанием полного пространства имен
-            System.Windows.Controls.Grid chartGrid = new System.Windows.Controls.Grid();
-            chartGrid.Children.Add(host);
-            ChartContainer.Content = chartGrid;
-        }
-
-        private void TaskTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (TaskTypeComboBox.SelectedIndex == 0) // Поиск корня
+            // Навигация назад
+            if (NavigationService.CanGoBack)
             {
-                ExtremumTypePanel.Visibility = Visibility.Collapsed;
-
-                if (CalculateRootButton != null)
-                    CalculateRootButton.IsEnabled = true;
-
-                if (CalculateExtremumButton != null)
-                    CalculateExtremumButton.IsEnabled = false;
-
-                isFindingExtremum = false;
-            }
-            else // Поиск экстремума
-            {
-                ExtremumTypePanel.Visibility = Visibility.Visible;
-
-                if (CalculateRootButton != null)
-                    CalculateRootButton.IsEnabled = false;
-
-                if (CalculateExtremumButton != null)
-                    CalculateExtremumButton.IsEnabled = true;
-
-                isFindingExtremum = true;
+                NavigationService.GoBack();
             }
         }
 
-        private void CalculateRootButton_Click(object sender, RoutedEventArgs e)
+        private async void CalculateButton_Click(object sender, RoutedEventArgs e)
         {
-            CalculateSolution(false);
-        }
+            if (_isCalculating)
+            {
+                MessageBox.Show("Вычисление уже выполняется. Дождитесь завершения или нажмите 'Назад' для отмены.");
+                return;
+            }
 
-        private void CalculateExtremumButton_Click(object sender, RoutedEventArgs e)
-        {
-            CalculateSolution(true);
-        }
-
-        private void CalculateSolution(bool findExtremum)
-        {
             try
             {
-                // Проверка входных данных
-                if (!ValidateInputs())
-                    return;
+                _isCalculating = true;
+                CalculateButton.IsEnabled = false;
+                ResultTextBlock.Text = "Вычисление...";
+                ResultTextBlock.Foreground = Brushes.Blue;
 
-                // Получение значений
-                string function = FunctionTextBox.Text;
-                double a = double.Parse(StartTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
-                double b = double.Parse(EndTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
-                double epsilon = double.Parse(PrecisionTextBox.Text.Replace(",", "."), CultureInfo.InvariantCulture);
+                // Создаем токен отмены
+                _cancellationTokenSource = new CancellationTokenSource();
 
-                // Создание метода золотого сечения
-                goldenRatioMethod = new GoldenRatioMethod(function);
-
-                // Проверка функции на интервале
-                if (!goldenRatioMethod.TestFunctionOnInterval(a, b))
+                // Проверка заполнения полей
+                if (string.IsNullOrWhiteSpace(FunctionTextBox.Text) ||
+                    string.IsNullOrWhiteSpace(TextBoxA.Text) ||
+                    string.IsNullOrWhiteSpace(TextBoxB.Text) ||
+                    string.IsNullOrWhiteSpace(TextBoxEpsilon.Text))
                 {
-                    MessageBox.Show("Функция не определена или имеет разрывы на заданном интервале",
-                                  "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Заполните все поля!", "Внимание", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (findExtremum)
+                double a = ParseDouble(TextBoxA.Text);
+                double b = ParseDouble(TextBoxB.Text);
+                double epsilon = ParseDouble(TextBoxEpsilon.Text);
+                string functionText = PreprocessFunction(FunctionTextBox.Text);
+
+                // Определяем тип поиска
+                SearchType searchType = SearchType.Minimum;
+                if (MaxRadioButton.IsChecked == true)
+                    searchType = SearchType.Maximum;
+                else if (RootRadioButton.IsChecked == true)
+                    searchType = SearchType.Root;
+
+                // Валидация входных данных
+                if (a >= b)
                 {
-                    // Поиск экстремума методом золотого сечения
-                    bool findMinimum = ExtremumTypeComboBox.SelectedIndex == 0;
-                    GoldenRatioResult result;
+                    MessageBox.Show("a должно быть меньше b!", "Ошибка ввода", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
 
-                    if (findMinimum)
-                        result = goldenRatioMethod.FindMinimum(a, b, epsilon);
-                    else
-                        result = goldenRatioMethod.FindMaximum(a, b, epsilon);
+                if (epsilon <= 0)
+                {
+                    MessageBox.Show("Точность должна быть положительным числом!", "Ошибка ввода", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
 
-                    ResultTextBox.Text = $"Экстремум найден методом золотого сечения:\n";
-                    ResultTextBox.Text += $"Точка: x = {result.ExtremumPoint:F6}\n";
-                    ResultTextBox.Text += $"Значение: f(x) = {result.ExtremumValue:F6}\n";
-                    ResultTextBox.Text += $"Тип: {(findMinimum ? "Минимум" : "Максимум")}\n";
-                    ResultTextBox.Text += $"Количество итераций: {result.Iterations}";
+                // Проверяем функцию в нескольких точках
+                if (!IsFunctionValidInInterval(a, b, functionText))
+                {
+                    MessageBox.Show("Функция содержит ошибки или не определена на интервале!", "Ошибка в функции", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
 
-                    // Обновление графика с точкой экстремума
-                    UpdateChart(a, b, result.ExtremumPoint, result.ExtremumValue, findMinimum ? "Минимум" : "Максимум");
+                // Запускаем вычисления в отдельной задаче
+                List<Point> results;
+                if (searchType == SearchType.Root)
+                {
+                    results = await Task.Run(() => FindAllRoots(a, b, epsilon, functionText, _cancellationTokenSource.Token));
                 }
                 else
                 {
-                    // Поиск корня методом дихотомии (используем метод золотого сечения для корня)
-                    GoldenRatioResult result = goldenRatioMethod.FindRoot(a, b, epsilon);
-
-                    // Получаем значения функции на концах интервала для проверки
-                    double fa = goldenRatioMethod.CalculateFunction(a);
-                    double fb = goldenRatioMethod.CalculateFunction(b);
-
-                    ResultTextBox.Text = $"Корень найден методом дихотомии:\n";
-                    ResultTextBox.Text += $"x = {result.ExtremumPoint:F6}\n";
-                    ResultTextBox.Text += $"f(x) = {result.ExtremumValue:F6}";
-
-                    // Обновление графика с точкой корня
-                    UpdateChart(a, b, result.ExtremumPoint, result.ExtremumValue, "Корень");
+                    results = await Task.Run(() => FindAllExtrema(a, b, epsilon, functionText, searchType, _cancellationTokenSource.Token));
                 }
+
+                // Проверяем не была ли отмена
+                if (_cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    ResultTextBlock.Text = "❌ Вычисление отменено";
+                    ResultTextBlock.Foreground = Brushes.Orange;
+                    return;
+                }
+
+                // Построение графика и вывод результатов в UI потоке
+                PlotFunction(a, b, functionText, results, searchType);
+
+                if (results.Count == 0)
+                {
+                    string message = searchType == SearchType.Root
+                      ? "❌ На заданном интервале корней не найдено"
+                      : "❌ На заданном интервале экстремумов не найдено";
+                    ResultTextBlock.Text = message;
+                    ResultTextBlock.Foreground = Brushes.Red;
+                }
+                else
+                {
+                    // Фильтруем и форматируем результаты
+                    var displayResults = results
+                        .Select(m => new {
+                            X = Math.Abs(m.X) < 1e-10 ? 0 : Math.Round(m.X, 6),
+                            Y = Math.Abs(m.Y) < 1e-10 ? 0 : Math.Round(m.Y, 6)
+                        })
+                        .Distinct()
+                        .OrderBy(m => m.X)
+                        .ToList();
+
+                    string typeName = searchType == SearchType.Root ? "корней" :
+                                     (searchType == SearchType.Minimum ? "минимумов" : "максимумов");
+                    ResultTextBlock.Text = $"✓ Найдено {typeName}: {displayResults.Count}\n\n";
+
+                    for (int i = 0; i < displayResults.Count; i++)
+                    {
+                        var result = displayResults[i];
+                        string xStr = result.X == 0 ? "0" : $"{result.X:0.######}";
+                        string yStr = result.Y == 0 ? "0" : $"{result.Y:0.######}";
+
+                        if (searchType == SearchType.Root)
+                        {
+                            ResultTextBlock.Text += $"Корень {i + 1}: x = {xStr}\n";
+                        }
+                        else
+                        {
+                            ResultTextBlock.Text += $"{(searchType == SearchType.Minimum ? "Минимум" : "Максимум")} {i + 1}: ";
+                            ResultTextBlock.Text += $"x = {xStr}, f(x) = {yStr}\n";
+                        }
+                    }
+
+                    ResultTextBlock.Foreground = Brushes.Green;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                ResultTextBlock.Text = "❌ Вычисление отменено";
+                ResultTextBlock.Foreground = Brushes.Orange;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при расчете: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                ResultTextBlock.Text = $"❌ Ошибка: {ex.Message}";
+                ResultTextBlock.Foreground = Brushes.Red;
+            }
+            finally
+            {
+                _isCalculating = false;
+                CalculateButton.IsEnabled = true;
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
             }
         }
 
-        private void UpdateChart(double a, double b, double solutionX, double solutionY, string solutionType)
+        // Предобработка функции для поддержки разных форматов
+        private string PreprocessFunction(string functionText)
         {
-            if (goldenRatioMethod == null || chart == null)
-                return;
+            string result = functionText.Trim();
 
-            try
+            // Заменяем ^ на pow
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"(\w+)\^(\d+)", "pow($1,$2)");
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"(\d+)\^(\w+)", "pow($1,$2)");
+            result = System.Text.RegularExpressions.Regex.Replace(result, @"(\w+)\^\(([^)]+)\)", "pow($1,$2)");
+
+            // Заменяем 1/x на деление
+            result = result.Replace("1/x", "(1)/(x)");
+
+            return result;
+        }
+
+        private List<Point> FindAllExtrema(double a, double b, double epsilon, string functionText, SearchType searchType, CancellationToken cancellationToken = default)
+        {
+            var extrema = new List<Point>();
+            int divisions = 200;
+            double step = (b - a) / divisions;
+
+            for (int i = 0; i < divisions; i++)
             {
-                // Очищаем график
-                foreach (var series in chart.Series)
+                cancellationToken.ThrowIfCancellationRequested();
+
+                double x1 = a + i * step;
+                double x2 = x1 + step;
+
+                // Пропускаем интервалы, которые содержат разрывы
+                if (HasDiscontinuity(x1, x2, functionText))
+                    continue;
+
+                bool f1Valid = IsFunctionDefined(x1, functionText);
+                bool f2Valid = IsFunctionDefined(x2, functionText);
+
+                if (f1Valid && f2Valid)
                 {
-                    series.Points.Clear();
+                    try
+                    {
+                        Point extremum;
+                        if (searchType == SearchType.Maximum)
+                        {
+                            extremum = GoldenSectionSearch(x1, x2, epsilon, functionText, SearchType.Maximum);
+                        }
+                        else
+                        {
+                            extremum = GoldenSectionSearch(x1, x2, epsilon, functionText, SearchType.Minimum);
+                        }
+
+                        // Фильтруем ложные экстремумы
+                        if (IsRealExtremum(extremum, functionText, epsilon, searchType))
+                        {
+                            if (!IsExtremumAlreadyFound(extrema, extremum, 0.001))
+                            {
+                                extrema.Add(extremum);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Пропускаем подынтервалы, где метод не срабатывает
+                    }
+                }
+            }
+
+            return extrema.OrderBy(m => m.X).ToList();
+        }
+
+        private List<Point> FindAllRoots(double a, double b, double epsilon, string functionText, CancellationToken cancellationToken = default)
+        {
+            var roots = new List<Point>();
+            int divisions = 500;
+            double step = (b - a) / divisions;
+
+            double? prevY = null;
+            double prevX = a;
+
+            for (int i = 0; i <= divisions; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                double x = a + i * step;
+
+                try
+                {
+                    double y = CalculateFunction(x, functionText);
+
+                    if (prevY.HasValue)
+                    {
+                        if (prevY.Value * y <= 0)
+                        {
+                            try
+                            {
+                                double root = FindRootByBisection(prevX, x, epsilon, functionText, cancellationToken);
+                                double rootY = CalculateFunction(root, functionText);
+
+                                if (Math.Abs(rootY) < 1000)
+                                {
+                                    Point rootPoint = new Point(root, rootY);
+                                    if (!IsRootAlreadyFound(roots, rootPoint, epsilon))
+                                    {
+                                        roots.Add(rootPoint);
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Пропускаем если не удалось найти корень
+                            }
+                        }
+                    }
+
+                    prevY = y;
+                    prevX = x;
+                }
+                catch
+                {
+                    prevY = null;
+                }
+            }
+
+            return roots.OrderBy(r => r.X).ToList();
+        }
+
+        private double FindRootByBisection(double a, double b, double epsilon, string functionText, CancellationToken cancellationToken)
+        {
+            double fa = CalculateFunction(a, functionText);
+            double fb = CalculateFunction(b, functionText);
+
+            if (Math.Abs(fa) < epsilon)
+                return a;
+            if (Math.Abs(fb) < epsilon)
+                return b;
+
+            if (fa * fb > 0)
+            {
+                throw new ArgumentException("Функция не меняет знак на интервале");
+            }
+
+            double mid;
+            double fmid;
+            int maxIterations = 1000;
+
+            for (int i = 0; i < maxIterations; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                mid = (a + b) / 2;
+                fmid = CalculateFunction(mid, functionText);
+
+                if (Math.Abs(fmid) < epsilon || Math.Abs(b - a) < epsilon)
+                {
+                    return mid;
                 }
 
-                // Генерация точек для графика функции
-                int pointsCount = 400;
+                if (fa * fmid < 0)
+                {
+                    b = mid;
+                    fb = fmid;
+                }
+                else
+                {
+                    a = mid;
+                    fa = fmid;
+                }
+            }
+
+            return (a + b) / 2;
+        }
+
+        private bool HasDiscontinuity(double a, double b, string functionText)
+        {
+            int testPoints = 10;
+            double step = (b - a) / testPoints;
+
+            double? prevValue = null;
+
+            for (int i = 0; i <= testPoints; i++)
+            {
+                double x = a + i * step;
+                try
+                {
+                    double y = CalculateFunction(x, functionText);
+
+                    if (double.IsInfinity(y) || double.IsNaN(y))
+                        return true;
+
+                    if (prevValue.HasValue)
+                    {
+                        if (Math.Abs(y - prevValue.Value) > 1000)
+                            return true;
+                    }
+
+                    prevValue = y;
+                }
+                catch
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsFunctionValidInInterval(double a, double b, string functionText)
+        {
+            double[] testPoints = { a, (a + b) / 2, b };
+
+            foreach (double x in testPoints)
+            {
+                try
+                {
+                    CalculateFunction(x, functionText);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool IsRealExtremum(Point candidate, string functionText, double epsilon, SearchType searchType)
+        {
+            try
+            {
+                double y = candidate.Y;
+
+                if (Math.Abs(y) > 1000)
+                    return false;
+
+                double h = epsilon * 10;
+                double yLeft = CalculateFunction(candidate.X - h, functionText);
+                double yRight = CalculateFunction(candidate.X + h, functionText);
+
+                if (searchType == SearchType.Minimum)
+                {
+                    return y < yLeft && y < yRight;
+                }
+                else
+                {
+                    return y > yLeft && y > yRight;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private Point GoldenSectionSearch(double a, double b, double epsilon, string functionText, SearchType searchType)
+        {
+            double x1 = b - (b - a) * GoldenRatio;
+            double x2 = a + (b - a) * GoldenRatio;
+
+            double f1 = CalculateFunction(x1, functionText);
+            double f2 = CalculateFunction(x2, functionText);
+
+            int compareFactor = (searchType == SearchType.Maximum) ? -1 : 1;
+
+            int iterations = 0;
+            while (Math.Abs(b - a) > epsilon && iterations < 1000)
+            {
+                iterations++;
+
+                if (f1 * compareFactor < f2 * compareFactor)
+                {
+                    b = x2;
+                    x2 = x1;
+                    f2 = f1;
+                    x1 = b - (b - a) * GoldenRatio;
+                    f1 = CalculateFunction(x1, functionText);
+                }
+                else
+                {
+                    a = x1;
+                    x1 = x2;
+                    f1 = f2;
+                    x2 = a + (b - a) * GoldenRatio;
+                    f2 = CalculateFunction(x2, functionText);
+                }
+            }
+
+            double extremumX = (a + b) / 2;
+            double extremumY = CalculateFunction(extremumX, functionText);
+
+            return new Point(extremumX, extremumY);
+        }
+
+        private bool IsExtremumAlreadyFound(List<Point> extrema, Point candidate, double tolerance)
+        {
+            foreach (var extremum in extrema)
+            {
+                if (Math.Abs(extremum.X - candidate.X) < tolerance)
+                    return true;
+            }
+            return false;
+        }
+
+        private bool IsRootAlreadyFound(List<Point> roots, Point candidate, double tolerance)
+        {
+            foreach (var root in roots)
+            {
+                if (Math.Abs(root.X - candidate.X) < tolerance)
+                    return true;
+            }
+            return false;
+        }
+
+        private void PlotFunction(double a, double b, string functionText, List<Point> points, SearchType searchType)
+        {
+            try
+            {
+                string title = $"f(x) = {FunctionTextBox.Text}";
+                var plotModel = new PlotModel
+                {
+                    Title = title,
+                    TitleFontSize = 14,
+                    TitleColor = OxyColors.DarkBlue,
+                    PlotMargins = new OxyThickness(50, 20, 20, 40)
+                };
+
+                var functionSeries = new LineSeries
+                {
+                    Color = OxyColors.Blue,
+                    StrokeThickness = 2,
+                    Title = "f(x)"
+                };
+
+                int pointsCount = 1000;
                 double step = (b - a) / pointsCount;
 
-                Series functionSeries = chart.Series["f(x)"];
-
-                double minY = double.MaxValue;
-                double maxY = double.MinValue;
+                double yCutoff = 50;
+                List<OxyPlot.DataPoint> currentSegment = new List<OxyPlot.DataPoint>();
 
                 for (int i = 0; i <= pointsCount; i++)
                 {
                     double x = a + i * step;
                     try
                     {
-                        double y = goldenRatioMethod.CalculateFunction(x);
-                        if (!double.IsInfinity(y) && !double.IsNaN(y))
-                        {
-                            functionSeries.Points.AddXY(x, y);
+                        double y = CalculateFunction(x, functionText);
 
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
+                        if (double.IsInfinity(y) || double.IsNaN(y) || Math.Abs(y) > yCutoff)
+                        {
+                            if (currentSegment.Count > 0)
+                            {
+                                foreach (var point in currentSegment)
+                                {
+                                    functionSeries.Points.Add(point);
+                                }
+                                currentSegment.Clear();
+                            }
+                            continue;
                         }
+
+                        currentSegment.Add(new OxyPlot.DataPoint(x, y));
                     }
                     catch
                     {
-                        // Пропускаем проблемные точки
+                        if (currentSegment.Count > 0)
+                        {
+                            foreach (var point in currentSegment)
+                            {
+                                functionSeries.Points.Add(point);
+                            }
+                            currentSegment.Clear();
+                        }
                     }
                 }
 
-                // Настраиваем ось X
-                chart.ChartAreas[0].AxisX.Minimum = a;
-                chart.ChartAreas[0].AxisX.Maximum = b;
-                chart.ChartAreas[0].AxisX.Interval = Math.Max((b - a) / 10, 0.1);
-
-                // Настраиваем ось Y с отступами
-                if (minY != double.MaxValue && maxY != double.MinValue)
+                if (currentSegment.Count > 0)
                 {
-                    if (minY == maxY)
+                    foreach (var point in currentSegment)
                     {
-                        minY -= 1;
-                        maxY += 1;
+                        functionSeries.Points.Add(point);
+                    }
+                }
+
+                double xMin = a;
+                double xMax = b;
+
+                var allYValues = new List<double>();
+                foreach (var point in functionSeries.Points)
+                {
+                    allYValues.Add(point.Y);
+                }
+
+                double yMin = allYValues.Count > 0 ? allYValues.Min() : -10;
+                double yMax = allYValues.Count > 0 ? allYValues.Max() : 10;
+
+                foreach (var point in points)
+                {
+                    if (Math.Abs(point.Y) <= yCutoff)
+                    {
+                        allYValues.Add(point.Y);
+                    }
+                }
+
+                if (allYValues.Count > 0)
+                {
+                    yMin = allYValues.Min();
+                    yMax = allYValues.Max();
+                }
+
+                double yRange = yMax - yMin;
+                if (yRange == 0)
+                    yRange = 1;
+                yMin -= yRange * 0.1;
+                yMax += yRange * 0.1;
+
+                var xAxis = new LinearAxis
+                {
+                    Position = AxisPosition.Bottom,
+                    Title = "x",
+                    TitleColor = OxyColors.Black,
+                    AxislineColor = OxyColors.Black,
+                    MajorGridlineColor = OxyColors.LightGray,
+                    MajorGridlineStyle = LineStyle.Dot,
+                    Minimum = xMin,
+                    Maximum = xMax,
+                    MajorStep = CalculateReasonableStep(xMin, xMax)
+                };
+
+                var yAxis = new LinearAxis
+                {
+                    Position = AxisPosition.Left,
+                    Title = "f(x)",
+                    TitleColor = OxyColors.Black,
+                    AxislineColor = OxyColors.Black,
+                    MajorGridlineColor = OxyColors.LightGray,
+                    MajorGridlineStyle = LineStyle.Dot,
+                    Minimum = yMin,
+                    Maximum = yMax,
+                    MajorStep = CalculateReasonableStep(yMin, yMax)
+                };
+
+                plotModel.Axes.Add(xAxis);
+                plotModel.Axes.Add(yAxis);
+                plotModel.Series.Add(functionSeries);
+
+                var zeroLine = new LineSeries
+                {
+                    Color = OxyColors.Gray,
+                    StrokeThickness = 1,
+                    LineStyle = LineStyle.Dash
+                };
+                zeroLine.Points.Add(new OxyPlot.DataPoint(xMin, 0));
+                zeroLine.Points.Add(new OxyPlot.DataPoint(xMax, 0));
+                plotModel.Series.Add(zeroLine);
+
+                if (points.Count > 0)
+                {
+                    var pointSeries = new ScatterSeries
+                    {
+                        MarkerType = MarkerType.Circle,
+                        MarkerSize = 6,
+                        MarkerStrokeThickness = 2,
+                        Title = searchType == SearchType.Root ? "Корни" :
+                             (searchType == SearchType.Minimum ? "Минимумы" : "Максимумы")
+                    };
+
+                    if (searchType == SearchType.Root)
+                    {
+                        pointSeries.MarkerFill = OxyColors.Green;
+                        pointSeries.MarkerStroke = OxyColors.DarkGreen;
+                    }
+                    else if (searchType == SearchType.Minimum)
+                    {
+                        pointSeries.MarkerFill = OxyColors.Red;
+                        pointSeries.MarkerStroke = OxyColors.DarkRed;
+                    }
+                    else
+                    {
+                        pointSeries.MarkerFill = OxyColors.Orange;
+                        pointSeries.MarkerStroke = OxyColors.DarkOrange;
                     }
 
-                    double padding = Math.Max(Math.Abs(maxY - minY) * 0.1, 0.1);
-                    chart.ChartAreas[0].AxisY.Minimum = minY - padding;
-                    chart.ChartAreas[0].AxisY.Maximum = maxY + padding;
-                    chart.ChartAreas[0].AxisY.Interval = Math.Max((maxY - minY) / 10, 0.1);
+                    foreach (Point point in points)
+                    {
+                        if (Math.Abs(point.Y) <= yCutoff)
+                        {
+                            pointSeries.Points.Add(new ScatterPoint(point.X, point.Y));
+
+                            string annotationText = searchType == SearchType.Root
+                              ? $"({point.X:0.###}, 0)"
+                              : $"({point.X:0.###}, {point.Y:0.###})";
+
+                            var annotation = new PointAnnotation
+                            {
+                                X = point.X,
+                                Y = point.Y,
+                                Text = annotationText,
+                                TextColor = pointSeries.MarkerStroke,
+                                FontSize = 10,
+                                Stroke = pointSeries.MarkerStroke,
+                                StrokeThickness = 1
+                            };
+                            plotModel.Annotations.Add(annotation);
+                        }
+                    }
+
+                    if (pointSeries.Points.Count > 0)
+                    {
+                        plotModel.Series.Add(pointSeries);
+                    }
                 }
 
-                // Добавляем точку решения
-                Series solutionSeries = chart.Series["Решение"];
-                solutionSeries.Points.Clear();
-                solutionSeries.Points.AddXY(solutionX, solutionY);
-
-                // Настраиваем цвет точки решения
-                if (solutionType == "Минимум")
-                {
-                    solutionSeries.Color = System.Drawing.Color.Green;
-                    solutionSeries.Name = "Минимум";
-                }
-                else if (solutionType == "Максимум")
-                {
-                    solutionSeries.Color = System.Drawing.Color.Orange;
-                    solutionSeries.Name = "Максимум";
-                }
-                else // Корень
-                {
-                    solutionSeries.Color = System.Drawing.Color.Red;
-                    solutionSeries.Name = "Корень";
-                }
-
-                // Обновляем легенду
-                chart.Legends.Clear();
-                Legend legend = new Legend();
-                chart.Legends.Add(legend);
+                PlotView.Model = plotModel;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка при обновлении графика: {ex.Message}");
+                MessageBox.Show($"Ошибка при построении графика: {ex.Message}");
             }
         }
 
-        private bool ValidateInputs()
+        private double CalculateReasonableStep(double min, double max)
         {
-            // Проверка функции
-            if (string.IsNullOrWhiteSpace(FunctionTextBox.Text))
-            {
-                MessageBox.Show("Введите функцию", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+            double range = max - min;
+            if (range <= 0)
+                return 1;
 
-            // Проверка интервала
-            if (!double.TryParse(StartTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
-            {
-                MessageBox.Show("Некорректное значение начала интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+            double step = Math.Pow(10, Math.Floor(Math.Log10(range)));
 
-            if (!double.TryParse(EndTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
-            {
-                MessageBox.Show("Некорректное значение конца интервала", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
+            if (range / step > 10)
+                step *= 2;
+            if (range / step > 20)
+                step *= 2;
+            if (range / step < 3)
+                step /= 2;
 
-            if (a >= b)
-            {
-                MessageBox.Show("Начало интервала должно быть меньше конца", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            // Проверка точности
-            if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
-            {
-                MessageBox.Show("Некорректное значение точности", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            if (epsilon <= 0)
-            {
-                MessageBox.Show("Точность должна быть положительной", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            return true;
+            return Math.Max(step, 0.1);
         }
 
-        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        private double ParseDouble(string text)
         {
-            FunctionTextBox.Text = "";
-            StartTextBox.Text = "0";
-            EndTextBox.Text = "10";
-            PrecisionTextBox.Text = "0.001";
-            ResultTextBox.Text = "";
-            TaskTypeComboBox.SelectedIndex = 0;
-            ExtremumTypeComboBox.SelectedIndex = 0;
-
-            // Очистка графика
-            if (chart != null)
-            {
-                foreach (var series in chart.Series)
-                {
-                    series.Points.Clear();
-                }
-            }
+            return double.Parse(text.Replace(',', '.'), CultureInfo.InvariantCulture);
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (NavigationService.CanGoBack)
-            {
-                NavigationService.GoBack();
-            }
-            else
-            {
-                NavigationService.Navigate(new Menu());
-            }
-        }
-
-        private void TestDataButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Тестовые данные для метода золотого сечения
-            if (TaskTypeComboBox.SelectedIndex == 0) // Поиск корня
-            {
-                FunctionTextBox.Text = "x^2 - 4";
-                StartTextBox.Text = "0";
-                EndTextBox.Text = "5";
-                PrecisionTextBox.Text = "0.0001";
-            }
-            else // Поиск экстремума
-            {
-                FunctionTextBox.Text = "x^2 - 4*x + 5";
-                StartTextBox.Text = "-5";
-                EndTextBox.Text = "5";
-                PrecisionTextBox.Text = "0.0001";
-                ExtremumTypeComboBox.SelectedIndex = 0; // Минимум
-            }
-        }
-
-        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            // Валидация при изменении текста
-            bool isValid = ValidateInputsSilent();
-
-            // Добавляем проверку на null для кнопок
-            if (TaskTypeComboBox.SelectedIndex == 0) // Поиск корня
-            {
-                if (CalculateRootButton != null)
-                    CalculateRootButton.IsEnabled = isValid;
-            }
-            else // Поиск экстремума
-            {
-                if (CalculateExtremumButton != null)
-                    CalculateExtremumButton.IsEnabled = isValid;
-            }
-        }
-
-        private bool ValidateInputsSilent()
+        private double CalculateFunction(double x, string functionText)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(FunctionTextBox.Text))
-                    return false;
+                NCalc.Expression expression = new NCalc.Expression(functionText);
+                expression.Parameters["x"] = x;
 
-                if (!double.TryParse(StartTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
-                    return false;
+                expression.EvaluateFunction += delegate (string name, FunctionArgs args) {
+                    if (name == "sqrt")
+                        args.Result = Math.Sqrt(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "sin")
+                        args.Result = Math.Sin(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "cos")
+                        args.Result = Math.Cos(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "tan")
+                        args.Result = Math.Tan(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "log" || name == "ln")
+                        args.Result = Math.Log(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "exp")
+                        args.Result = Math.Exp(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "abs")
+                        args.Result = Math.Abs(Convert.ToDouble(args.Parameters[0].Evaluate()));
+                    else if (name == "pow")
+                    {
+                        double baseValue = Convert.ToDouble(args.Parameters[0].Evaluate());
+                        double exponent = Convert.ToDouble(args.Parameters[1].Evaluate());
+                        args.Result = Math.Pow(baseValue, exponent);
+                    }
+                };
 
-                if (!double.TryParse(EndTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
-                    return false;
+                object result = expression.Evaluate();
 
-                if (a >= b)
-                    return false;
+                if (double.IsInfinity(Convert.ToDouble(result)) || double.IsNaN(Convert.ToDouble(result)))
+                {
+                    throw new ArgumentException("Функция не определена в этой точке");
+                }
 
-                if (!double.TryParse(PrecisionTextBox.Text.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out double epsilon))
-                    return false;
+                return Convert.ToDouble(result);
+            }
+            catch (DivideByZeroException)
+            {
+                throw new ArgumentException("Деление на ноль");
+            }
+            catch (Exception ex)
+            {
+                throw new ArgumentException($"Ошибка в функции: {ex.Message}");
+            }
+        }
 
-                if (epsilon <= 0)
-                    return false;
-
+        private bool IsFunctionDefined(double x, string functionText)
+        {
+            try
+            {
+                CalculateFunction(x, functionText);
                 return true;
             }
             catch
